@@ -66,6 +66,14 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+        /* Style untuk modal berita */
+        .modal-content {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -138,9 +146,9 @@
                         <img src="https://placehold.co/600x400/34D399/FFFFFF?text=Kegiatan+Belajar" alt="Kegiatan Belajar Santri" class="rounded-xl shadow-lg w-full">
                     </div>
                     <div>
-                        <h2 class="section-title">Selamat Datang di Darul Huda</h2>
-                        <p class="section-subtitle">Sejak didirikan, kami mendedikasikan diri untuk pendidikan Islam yang seimbang antara ilmu dunia dan akhirat.</p>
-                        <p class="mt-4 text-gray-600">Visi kami adalah menjadi lembaga pendidikan Islam terdepan dalam mencetak kader-kader umat yang berkualitas, mandiri, dan bermanfaat bagi masyarakat. Misi kami meliputi penyelenggaraan pendidikan tahfidz yang terstruktur, pengkajian kitab kuning, serta pembinaan akhlak dan kemandirian santri.</p>
+                        <h2 id="about-us-title" class="section-title">Selamat Datang di Darul Huda</h2>
+                        <p id="about-us-subtitle" class="section-subtitle">Sejak didirikan, kami mendedikasikan diri untuk pendidikan Islam yang seimbang antara ilmu dunia dan akhirat.</p>
+                        <p id="about-us-body" class="mt-4 text-gray-600">Visi kami adalah menjadi lembaga pendidikan Islam terdepan dalam mencetak kader-kader umat yang berkualitas, mandiri, dan bermanfaat bagi masyarakat. Misi kami meliputi penyelenggaraan pendidikan tahfidz yang terstruktur, pengkajian kitab kuning, serta pembinaan akhlak dan kemandirian santri.</p>
                         <div class="mt-6 flex space-x-4">
                             <div class="flex items-center">
                                 <i data-lucide="book-open-check" class="w-8 h-8 text-teal-600"></i>
@@ -299,6 +307,14 @@
         </div>
     </footer>
 
+    <!-- News Modal -->
+    <div id="news-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[100] hidden items-center justify-center p-4 transition-opacity duration-300">
+        <div id="news-modal-content-wrapper" class="modal-content bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <!-- Content will be injected by JavaScript -->
+        </div>
+    </div>
+
+
     <!-- Firebase SDK -->
     <script type="module">
         // Import the functions you need from the SDKs you need
@@ -355,7 +371,14 @@
                                 <h3 class="text-xl font-bold text-gray-800 mb-2">${post.title}</h3>
                                 <p class="text-sm text-gray-500 mb-4">${postDate}</p>
                                 <p class="text-gray-600 news-card-content flex-grow">${post.content}</p>
-                                <a href="#" class="mt-4 font-semibold text-teal-600 hover:text-teal-700 self-start">Baca Selengkapnya &rarr;</a>
+                                <button 
+                                    class="read-more-btn mt-4 font-semibold text-teal-600 hover:text-teal-700 self-start"
+                                    data-title="${post.title.replace(/"/g, '&quot;')}"
+                                    data-image="${post.imageUrl || 'https://placehold.co/600x400/e2e8f0/94a3b8?text=Darul+Huda'}"
+                                    data-date="${postDate}"
+                                    data-content="${post.content.replace(/"/g, '&quot;')}">
+                                    Baca Selengkapnya &rarr;
+                                </button>
                             </div>
                         </div>
                     `;
@@ -435,6 +458,30 @@
             }
         }
 
+        // --- Function to fetch and render About Us Info ---
+        async function renderAboutInfo() {
+            const titleEl = document.getElementById('about-us-title');
+            const subtitleEl = document.getElementById('about-us-subtitle');
+            const bodyEl = document.getElementById('about-us-body');
+
+            if (!titleEl || !subtitleEl || !bodyEl) return;
+
+            const docRef = doc(db, "site_content", "about_us");
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const about = docSnap.data();
+                    if(about.title) titleEl.textContent = about.title;
+                    if(about.subtitle) subtitleEl.textContent = about.subtitle;
+                    if(about.body) bodyEl.textContent = about.body;
+                } else {
+                    console.log("Dokumen 'Tentang Kami' tidak ditemukan di Firestore. Menampilkan teks default.");
+                }
+            } catch (error) {
+                console.error("Error fetching about info: ", error);
+            }
+        }
+
         // --- Function to fetch and render Contact Info ---
         async function renderContactInfo() {
             const container = document.getElementById('contact-info-container');
@@ -472,7 +519,7 @@
                     container.innerHTML = html;
                     lucide.createIcons();
                 } else {
-                    container.innerHTML = "<p>Informasi kontak tidak ditemukan.</p>";
+                    container.innerHTML = "<p>Informasi kontak tidak ditemukan. Silakan tambahkan melalui Panel Admin.</p>";
                 }
             } catch (error) {
                 console.error("Error fetching contact info: ", error);
@@ -480,18 +527,66 @@
             }
         }
         
+        // --- News Modal Logic ---
+        const newsModal = document.getElementById('news-modal');
+        const newsModalContentWrapper = document.getElementById('news-modal-content-wrapper');
+
+        function showNewsModal(title, imageUrl, date, content) {
+            newsModalContentWrapper.innerHTML = `
+                <div>
+                    <img src="${imageUrl}" alt="${title}" class="w-full h-64 md:h-80 object-cover rounded-t-lg" onerror="this.onerror=null;this.src='https://placehold.co/800x400/e2e8f0/94a3b8?text=Gambar+Tidak+Tersedia';">
+                    <div class="p-6 md:p-8">
+                        <h2 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title}</h2>
+                        <p class="text-sm text-gray-500 mb-4">${date}</p>
+                        <div class="prose max-w-none text-gray-700 whitespace-pre-wrap">${content}</div>
+                        <div class="text-right mt-6">
+                            <button id="close-modal-btn" class="cta-button cta-secondary">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            newsModal.classList.remove('hidden');
+            newsModal.classList.add('flex');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        function closeNewsModal() {
+            newsModal.classList.add('hidden');
+            newsModal.classList.remove('flex');
+            document.body.style.overflow = 'auto'; // Restore background scrolling
+        }
+
         // --- On Page Load ---
         document.addEventListener('DOMContentLoaded', () => {
             renderNews();
             renderPrograms();
             renderGallery();
             renderContactInfo();
+            renderAboutInfo();
 
             // Mobile menu toggle
             const mobileMenuButton = document.getElementById('mobile-menu-button');
             const mobileMenu = document.getElementById('mobile-menu');
             mobileMenuButton.addEventListener('click', () => {
                 mobileMenu.classList.toggle('hidden');
+            });
+
+            // Event listener for all "Read More" buttons
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('read-more-btn')) {
+                    const post = e.target.dataset;
+                    showNewsModal(post.title, post.image, post.date, post.content);
+                }
+                if (e.target.id === 'close-modal-btn') {
+                    closeNewsModal();
+                }
+            });
+
+            // Close modal when clicking on the overlay
+            newsModal.addEventListener('click', function(e) {
+                if (e.target.id === 'news-modal') {
+                    closeNewsModal();
+                }
             });
 
             // Initialize Lucide Icons
